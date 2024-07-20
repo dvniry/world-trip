@@ -4,13 +4,16 @@ from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 from database import SessionLocal, engine, Base
 from models import User, SVGFile, CountryComment
-from schemas import UserCreate, UserLogin, UserUpdate, User as UserSchema, SVGFile as SVGFileSchema, CountryColorUpdateWithToken, CountryCommentWithToken, OAuth2LoginRequest, CommentUpdateRequest, CommentRequest
-from auth import get_user_by_token, pwd_context, authenticate_user, create_access_token, ACCESS_TOKEN_EXPIRE_MINUTES, get_current_active_admin
+from schemas import UserCreate, UserLogin, UserUpdate, User as UserSchema, SVGFile as SVGFileSchema, \
+    CountryColorUpdateWithToken, CountryCommentWithToken, OAuth2LoginRequest, CommentUpdateRequest, CommentRequest
+from auth import get_user_by_token, pwd_context, authenticate_user, create_access_token, ACCESS_TOKEN_EXPIRE_MINUTES, \
+    get_current_active_admin
 from typing import Optional, List
 from datetime import timedelta
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.utils import get_openapi
 from pydantic import BaseModel, EmailStr, constr, validator
+from SERVER_URL import front, domen
 import re
 from lxml import etree
 
@@ -19,8 +22,8 @@ Base.metadata.create_all(bind=engine)
 app = FastAPI()
 
 origins = [
-    "https://world-trip.online",
-    "***", # конфидициальная инфорация
+    domen,
+    front,
 ]
 
 app.add_middleware(
@@ -31,6 +34,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
 class OAuth2PasswordBearerWithCookie(OAuth2PasswordBearer):
     async def __call__(self, request: Request) -> Optional[str]:
         authorization: str = request.cookies.get("Authorization")
@@ -39,14 +43,18 @@ class OAuth2PasswordBearerWithCookie(OAuth2PasswordBearer):
         scheme, _, param = authorization.partition(" ")
         return param
 
+
 oauth2_scheme = OAuth2PasswordBearerWithCookie(tokenUrl="token")
+
 
 @app.middleware("http")
 async def redirect_to_https(request: Request, call_next):
     if request.url.scheme == "http":
-        return Response(status_code=status.HTTP_301_MOVED_PERMANENTLY, headers={"Location": request.url.replace(scheme="https")})
+        return Response(status_code=status.HTTP_301_MOVED_PERMANENTLY,
+                        headers={"Location": request.url.replace(scheme="https")})
     response = await call_next(request)
     return response
+
 
 def get_db():
     db = SessionLocal()
@@ -54,6 +62,7 @@ def get_db():
         yield db
     finally:
         db.close()
+
 
 @app.post("/register/", response_model=dict)
 def register(user: UserCreate, db: Session = Depends(get_db)):
@@ -80,6 +89,7 @@ def register(user: UserCreate, db: Session = Depends(get_db)):
     response.set_cookie(key="Authorization", value=f"Bearer {access_token}", httponly=True)
     return response
 
+
 @app.post("/login", response_model=dict)
 def login(user: UserLogin, db: Session = Depends(get_db)):
     db_user = authenticate_user(db, user.email, user.password)
@@ -96,6 +106,7 @@ def login(user: UserLogin, db: Session = Depends(get_db)):
     response = JSONResponse(content={"access_token": access_token})
     response.set_cookie(key="Authorization", value=f"Bearer {access_token}", httponly=True)
     return response
+
 
 @app.put("/update_country_color/", response_model=None)
 def update_country_color(update: CountryColorUpdateWithToken, db: Session = Depends(get_db)):
@@ -135,14 +146,16 @@ def update_country_color(update: CountryColorUpdateWithToken, db: Session = Depe
     svg_file.svg_content = updated_svg_content
     db.commit()
     return {"detail": "Country color updated successfully"}
-    
+
+
 @app.put("/update_country_comment/", response_model=None)
 async def update_country_comment(request: CommentUpdateRequest, db: Session = Depends(get_db)):
     user = get_user_by_token(request.token, db)
     if user is None:
         raise HTTPException(status_code=404, detail="User not found")
 
-    country_comment = db.query(CountryComment).filter(CountryComment.email == user.email, CountryComment.id == request.id).first()
+    country_comment = db.query(CountryComment).filter(CountryComment.email == user.email,
+                                                      CountryComment.id == request.id).first()
     if country_comment is None:
         # Создаем новый комментарий
         country_comment = CountryComment(email=user.email, id=request.id, comment=request.comment)
@@ -154,9 +167,11 @@ async def update_country_comment(request: CommentUpdateRequest, db: Session = De
     db.commit()
     return {"detail": "Comment updated successfully"}
 
+
 @app.get("/users/me/", response_model=UserSchema)
 def read_users_me(current_user: User = Depends(get_current_active_admin)):
     return current_user
+
 
 @app.put("/update_user/{user_id}/", response_model=None)
 def update_user(user_id: int, user: UserUpdate, db: Session = Depends(get_db)):
@@ -174,25 +189,28 @@ def update_user(user_id: int, user: UserUpdate, db: Session = Depends(get_db)):
     db.commit()
     return {"detail": "User updated successfully"}
 
+
 @app.get("/get_svg_content/", response_model=None)
 def get_svg_content(token: str, db: Session = Depends(get_db)):
     user = get_user_by_token(token, db)
     if user is None:
         raise HTTPException(status_code=404, detail="User not found")
-    
+
     svg_file = db.query(SVGFile).filter(SVGFile.email == user.email).first()
     if not svg_file:
         raise HTTPException(status_code=404, detail="SVG file not found")
-    
+
     return Response(content=svg_file.svg_content, media_type="image/svg+xml")
-    
+
+
 @app.post("/get_country_comment/", response_model=str)
 async def get_country_comment(request: CommentRequest, db: Session = Depends(get_db)):
     user = get_user_by_token(request.token, db)
     if user is None:
         raise HTTPException(status_code=404, detail="User not found")
 
-    country_comment = db.query(CountryComment).filter(CountryComment.email == user.email, CountryComment.id == request.id).first()
+    country_comment = db.query(CountryComment).filter(CountryComment.email == user.email,
+                                                      CountryComment.id == request.id).first()
     if country_comment is None:
         raise HTTPException(status_code=404, detail="Comment not found")
 

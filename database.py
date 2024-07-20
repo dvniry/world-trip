@@ -1,8 +1,8 @@
 from sqlalchemy import create_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, scoped_session
+from DATABASE_URL import SQLALCHEMY_DATABASE_URL
 
-SQLALCHEMY_DATABASE_URL = "mysql://*****@localhost/*****_world_trip_db?charset=utf8mb4"#по причине содержания конфидициальной информации присутсвует цензура
 
 engine = create_engine(SQLALCHEMY_DATABASE_URL)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
@@ -14,4 +14,4 @@ def get_db():
     try:
         yield db
     finally:
-            db.close()
+        db.close()
