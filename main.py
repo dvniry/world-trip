@@ -137,11 +137,9 @@ def update_country_color(update: CountryColorUpdateWithToken, db: Session = Depe
     if not path_elements:
         raise HTTPException(status_code=404, detail=f"Country ID {country_id} not found in SVG content")
 
-    # Обновление атрибута fill
     for path in path_elements:
         path.set('fill', color)
 
-    # Преобразование обратно в строку
     updated_svg_content = etree.tostring(root, encoding='unicode')
     svg_file.svg_content = updated_svg_content
     db.commit()
@@ -157,11 +155,9 @@ async def update_country_comment(request: CommentUpdateRequest, db: Session = De
     country_comment = db.query(CountryComment).filter(CountryComment.email == user.email,
                                                       CountryComment.id == request.id).first()
     if country_comment is None:
-        # Создаем новый комментарий
         country_comment = CountryComment(email=user.email, id=request.id, comment=request.comment)
         db.add(country_comment)
     else:
-        # Обновляем существующий комментарий
         country_comment.comment = request.comment
 
     db.commit()
@@ -215,3 +211,5 @@ async def get_country_comment(request: CommentRequest, db: Session = Depends(get
         raise HTTPException(status_code=404, detail="Comment not found")
 
     return country_comment.comment
+
+#
